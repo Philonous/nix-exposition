@@ -12,7 +12,7 @@ It concentrates more on the "what" and "why" than the details of the "how".
 ## So what is Nix?
 
 Nix is (more than) a package management system. In that goal it is roughly
-comparable to Debian's `apt` or many other package manager. However, it's
+comparable to Debian's `apt` or many other package manager. However, its
 underlying principles, method of operation and implementation are radically
 different.
 
@@ -44,7 +44,7 @@ installed in its own, globally unique but deterministic directory. No package
 would be "blessed" by being installed system-wide, so having multiple versions
 of bash "installed" at the same time becomes trivial, they just reside in
 different directories. They can refer to libraries by specifying which one to
-load with the absolute path, again in it's unique directory. Additionally, since
+load with the absolute path, again in its unique directory. Additionally, since
 the same library version would always be installed in the same place, multiple
 packages can find and use it, saving disk space without having to worry about
 incompatibilities.
@@ -58,18 +58,20 @@ package name, prefixed by a hash that ensures that all store paths are unique
 (the hash of _what_ is explained a little later). Lastly within the package
 there there can be arbitrary subfolders, including bin, usr/lib etc.
 
-To make the store well, we have the following desiderata:
-* The store path uniquely determines it's contents. I.e. `/nix/store/xadrr3l5jvkkm3g3lb2g81j5wz51zqdv-bash-interactive-4.4-p23/bin/bash`
+To make the store work well, we require the following:
+* The store path uniquely determines its contents. I.e. `/nix/store/xadrr3l5jvkkm3g3lb2g81j5wz51zqdv-bash-interactive-4.4-p23/bin/bash`
   will always contain the same bash version, compiled with the same flags and
   linked against the same libraries (in the same store paths). If any of those
   change, a different path is produced
-* It does _not_ require that the hash part of the store path is the hash of it's
+* It does _not_ require that the hash part of the store path is the hash of its
   contents. The hash only needs to uniquely identify the content. (this becomes important later)
 * The contents of a store paths are _never_ modified in any way.
-* Store paths are only allowed to refer to other store paths (e.g. be linked
-  against libraries in them them, call executables etc.), not to files anywhere
-  else. This ensures that a store path and the store paths it (recursively)
-  refers to are self-sufficient. Such a self-sufficient set of store paths is called a `closure`.
+* Files in the store are only allowed to depend on files in the same or other
+  store paths, not anywhere else. This includes for example linked libraries,
+  external programs that might be called and data files. This requirement
+  ensures that the store path together with all the store paths it (recursively)
+  refers to are self-sufficient. Such a self-sufficient set of paths is called a
+  `closure`.
 
 The Nix store has a database that tracks which store paths need other paths
 to function, so you don't accidentally delete the libreadline library that
@@ -128,14 +130,14 @@ derivation itself!
 
 There are essentially two ways to ensure that derivations generate reproducible outputs:
 
-* The derivation only uses inputs that are in nix-store already, by fixed paths,
+* The derivation only uses inputs that are in the Nix store already, by fixed paths,
   and it only uses programs that are deterministic (e.g. a compiler with a fixed
   set of flags).
 * The derivation knows in advance what the hash of its output is going to be and
   checks that the output matches that hash. This is called a `fixed output
-  derivation` and is usefull e.g. for downloading sources from a URL.
+  derivation` and is usefull e.g. for downloading sources from the web.
 * Some programs, like git, have consistency checks already built in. So if you
-  check out a specific commit by it's (full) ID, you are already guaranteed to
+  check out a specific commit by its (full) ID, you are already guaranteed to
   always get the same data. This kind of falls in the middle between the two
   other categories.
 
@@ -145,7 +147,7 @@ outside the scope of this document.
 Also note that Nix doesn't really have an air-tight way of restricting you from
 breaking those invariants. If you do, the contents of the store path will be
 inconsistent and software depending on it may fail. However, Nix does try to guide
-you towards writing consistent Derivations.
+you towards writing consistent derivations.
 
 
 ### What is the Nix language
@@ -153,8 +155,8 @@ you towards writing consistent Derivations.
 Derivations are very limited and static (since they must produce predicatble
 outputs), Nix provides a more convenient language to generate them, which
 confusingly is also called Nix. It is "purely functional" in the sense that
-there are no statements, only expressions, but evaluation Nix expressions can
-have certain side-effects, like put something into the Nix store.
+there are no statements, only expressions, but evaluating Nix expressions can
+have certain side-effects, like putting something into the Nix store.
 
 For details of the Nix language, see e.g. https://nixos.org/guides/nix-pills/index.html
 
@@ -163,11 +165,11 @@ For details of the Nix language, see e.g. https://nixos.org/guides/nix-pills/ind
 When you have a project that you want to build with Nix you write a `Nix
 expression` (a piece of Nix code) describing a `derivation`.
 
-Then you tell Nix to `evaluate` that expression. Nix will put all the files it
-might refer to into the Nix store (replacing the paths in the expression by the
-store path) and produces a `derivation`. In the derivation, all dynamic
-constructs are resolved and evaluated and references to local files, urls etc. are
-replaced by store path, so it is truly static that produces predictable
+Then you tell Nix to `evaluate` that expression. Nix will put all the files the
+expression refers to into the Nix store, replacing the paths in the expression
+by the store path. It then produces a `derivation`. In the derivation, all dynamic
+constructs are resolved and evaluated and references to local files, urls
+etc. are replaced by store path, so it is truly static that produces predictable
 results.
 
 Last, you ask Nix to `instantiate` that derivation. It will then run `builder`
@@ -246,7 +248,7 @@ Nixpkgs is hosted on github: https://github.com/NixOS/nixpkgs
 
 # A (very) brief introduction to NixOS
 
-NixOS is an entire system built on Nix, using nixpkgs as it's package source.
+NixOS is an entire system built on Nix, using nixpkgs as its package source.
 
 * But how does NixOS know which package is "installed", when I can have many different versions of e.g. bash in the nix store?
 
