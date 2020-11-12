@@ -1,3 +1,6 @@
+<!-- Author: Philipp Balzarek -->
+<!-- License: CC BY 4.0 -->
+
 # WTF is Nix?
 
 This document is a very high-level overview over Nix. I wrote it because I
