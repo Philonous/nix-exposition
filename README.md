@@ -30,14 +30,9 @@ To understand how Nix works it is necessary to understand the three components i
 
 In most Linux distributions, installing a package (say, bash) involves copying
 the files that belong to that package into a certain well-known place in the
-file system (e.g. `/bin/bash`). The package manager also keeps a database of
-which packages are installed and which paths belong to that package . This
-allows it to remove the files belonging to that package for uninstalling or
-upgrading it . This approach works well enough, but it comes with a downside:
-You can only have one version of bash installed on your system, since there can
-only be one `/bin/bash`. Of course, you can manually install a different bash
-executable in another place (say, `/opt/bash-myversion`), but at that point you
-have given up on the package manager and doing all the work manually.
+file system (e.g. `/bin/bash`). This approach works well enough, but it comes
+with a downside: You can only have one version of bash installed on your system,
+since there can only be one `/bin/bash`.
 
 Instead, imagine that every package version, including libraries, is always
 installed in its own, globally unique but deterministic directory. No package
@@ -51,7 +46,7 @@ incompatibilities.
 
 This is the Nix store.
 
-For example bash would not reside under /bin/bash, but instead, say `/nix/store/xadrr3l5jvkkm3g3lb2g81j5wz51zqdv-bash-interactive-4.4-p23/bin/bash`
+For example, bash would not reside under /bin/bash, but instead, say `/nix/store/xadrr3l5jvkkm3g3lb2g81j5wz51zqdv-bash-interactive-4.4-p23/bin/bash`
 
 `/nix/store` is where all "installed" Nix packages live. The next part is the
 package name, prefixed by a hash that ensures that all store paths are unique
@@ -62,24 +57,24 @@ To make the store work well, we require the following:
 * The store path uniquely determines its contents. I.e. `/nix/store/xadrr3l5jvkkm3g3lb2g81j5wz51zqdv-bash-interactive-4.4-p23/bin/bash`
   will always contain the same bash version, compiled with the same flags and
   linked against the same libraries (in the same store paths). If any of those
-  change, a different path is produced
-* It does _not_ require that the hash part of the store path is the hash of its
+  change, a different path is produced.
+* It does not require that the hash part of the store path is the hash of its
   contents. The hash only needs to uniquely identify the content. (this becomes important later)
 * The contents of a store paths are _never_ modified in any way.
 * Files in the store are only allowed to depend on files in the same or other
-  store paths, not anywhere else. This includes for example linked libraries,
-  external programs that might be called and data files. This requirement
+  store paths, not anywhere else. This includes for example linked libraries
+  and external programs that might be called. This requirement
   ensures that the store path together with all the store paths it (recursively)
   refers to are self-sufficient. Such a self-sufficient set of paths is called a
   `closure`.
 
-The Nix store has a database that tracks which store paths need other paths
-to function, so you don't accidentally delete the libreadline library that
-your bash still needs. This allows Nix to determine orphaned packages that
-aren't referred to by anything any longer and can be
-deleted. `nix-collect-garbage` finds those store paths and deletes them. Nix also
-needs to know which packages you want to keep for yourself, since otherwise it
-would just always delete everything; these are called garbage-collection roots.
+The Nix store has a database that tracks which store paths need other paths to
+function, so you don't accidentally delete the libreadline library that your
+bash still needs. This allows Nix to determine orphaned packages that aren't
+referred to by anything any longer and can be deleted. `nix-collect-garbage`
+finds those orphaned store paths and deletes them. Nix also needs to know which
+packages you want to keep for yourself, since otherwise it would just always
+delete everything; these are called garbage-collection roots.
 
 "Updates" to a package are performed by putting a new version into a new
 path, and replacing programs with new ones that refer that new path. This
@@ -114,30 +109,31 @@ For example the closure that contains the the bash executable in path could can 
 
 Putting files into the store manually obviously doesn't scale well, so Nix comes
 with a build system. On the lowest level of that build system there are
-`derivations`. Derivations are essentially (not quite, but almost) json files
-that contain the information required to produce the build artifact, for example
-which other store paths to use for that build (programs like compilers, gnu
-make, preprocessors etc.) and source files as well what executable (`builder`)
-to call to perform the build. Most of the time the executable will be bash and
-it will run a script that just calls the build tool the package requires,
-e.g. gnu make, cabal or ant.
+`derivations`. Derivations are (not quite, but almost) json files that contain
+the information required to produce the build artifact, for example which other
+store paths to use for that build (programs like compilers, gnu make,
+preprocessors etc.) and source files as well what executable (`builder`) to call
+to perform the build. Most of the time the executable will be bash and it will
+run a script that just calls the build tool the package requires, e.g. gnu make,
+cabal or ant.
 
 We want to know which (unique) store path the derivation builds before it is
 instantiated (run), so we can check if it is already in the store or if we can
-fetch it from a cache. To make this possible, we demand that each derivation
-produces the same output every time it runs; then we can just hash the
-derivation itself!
+fetch it from a cache, avoiding having to perform the build again. To make this
+possible, we demand that each derivation produces the same output every time it
+runs. Thus we can hash the derivation itself, knowing that its hash uniquely
+identifies the output it produces.
 
 There are essentially two ways to ensure that derivations generate reproducible outputs:
 
-* The derivation only uses inputs that are in the Nix store already, by fixed paths,
-  and it only uses programs that are deterministic (e.g. a compiler with a fixed
-  set of flags).
+* The derivation only uses input files that are in the Nix store already, by
+  fixed paths, and it only uses programs that are deterministic (e.g. a compiler
+  with a fixed set of flags).
 * The derivation knows in advance what the hash of its output is going to be and
   checks that the output matches that hash. This is called a `fixed output
   derivation` and is usefull e.g. for downloading sources from the web.
-* Some programs, like git, have consistency checks already built in. So if you
-  check out a specific commit by its (full) ID, you are already guaranteed to
+* Some programs, like git, have consistency checks already built in; if you
+  check out a specific commit by its ID, you are already guaranteed to
   always get the same data. This kind of falls in the middle between the two
   other categories.
 
@@ -152,8 +148,8 @@ you towards writing consistent derivations.
 
 ### What is the Nix language
 
-Derivations are very limited and static (since they must produce predicatble
-outputs), Nix provides a more convenient language to generate them, which
+Derivations are very limited and static because they must produce predicatble
+outputs. Nix provides a more convenient language to generate them, which
 confusingly is also called Nix. It is "purely functional" in the sense that
 there are no statements, only expressions, but evaluating Nix expressions can
 have certain side-effects, like putting something into the Nix store.
@@ -166,7 +162,7 @@ When you have a project that you want to build with Nix you write a `Nix
 expression` (a piece of Nix code) describing a `derivation`.
 
 Then you tell Nix to `evaluate` that expression. Nix will put all the files the
-expression refers to into the Nix store, replacing the paths in the expression
+expression refers to into the store, replacing the paths in the expression
 by the store path. It then produces a `derivation`. In the derivation, all dynamic
 constructs are resolved and evaluated and references to local files, urls
 etc. are replaced by store path, so it is truly static that produces predictable
@@ -180,26 +176,26 @@ that produces the output and store it in the Nix store and tells you the path.
 
 ### But what about the FHS?
 
-Linux has a [Filesystem Hierarchy
-Standard](https://en.wikipedia.org/wiki/Filesystem_Hierarchy_Standard), which
-means that programs often expect things to reside in a certain directory (say
-`/usr/lib`). Nix breaks those expectations by putting packages into the Nix
-store, which means that programs written or compiled with the FHS in mind will
-not run.
+Linux' [Filesystem Hierarchy
+Standard](https://en.wikipedia.org/wiki/Filesystem_Hierarchy_Standard) specifies
+where programs, libraries and other files should be stored on a linux system.
+For example system binaries should be in `/bin`. Nix breaks these expectations
+by putting packages into the Nix store instead, which means that programs
+written or compiled with the FHS in mind will not function properly.
 
 To work around this problem, software programs packaged for Nix need to be
-patched and/or recompiled. For programs where the source code is not available
-(e.g. proprietary programs) the binary has to be patched to set the interpreter
-(the path of ld-linux) and rpath (where it looks for dynamic libraries). Text
-files are often modified with sed. Sometimes more "creative" tricks need to be
-employed like LD_PRELOAD-ing libc to dynamically replace paths or wrapper scripts.
+patched, reconfigured and/or recompiled. For programs where the source code is
+not available the binary has to be patched to set the interpreter (the path of
+ld-linux) and rpath (where it looks for dynamic libraries). Text files are often
+modified with sed. Sometimes more "creative" tricks are needed like
+LD_PRELOAD-ing libc to dynamically replace paths or wrapper scripts.
 
 This sounds like a terrible hack, but it works surprisingle well in practice.
 
 If all else fails, a FHS-compliant "shadow" system can be set up using links and
 the program can be chrooted in there. This is for example necessary when the
-software in question itself downloads other executables that then of course
-can't be patched beforehand (e.g. steam)
+software in question itself downloads other executables that then can't be
+patched beforehand (e.g. steam)
 
 
 ## So what does Nix offer us?
