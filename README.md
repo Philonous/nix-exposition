@@ -40,11 +40,11 @@ Instead, imagine that every package version, including libraries, is always
 installed in its own, globally unique but deterministic directory. No package
 would be "blessed" by being installed system-wide, so having multiple versions
 of bash "installed" at the same time becomes trivial, they just reside in
-different directories. They can refer to their own private libreadline, by
-specifying which one to load with the absolute path. Additionally, since the
-same library version would always be installed in the same place, multiple
+different directories. They can refer to libraries by specifying which one to
+load with the absolute path, again in it's unique directory. Additionally, since
+the same library version would always be installed in the same place, multiple
 packages can find and use it, saving disk space without having to worry about
-incompatibilities (as long as we are sufficiently precise about what we mean by "same version").
+incompatibilities.
 
 This is the Nix store.
 
@@ -53,33 +53,9 @@ For example bash would not reside under /bin/bash, but instead, say `/nix/store/
 `/nix/store` is where all "installed" Nix packages live. The next part is the
 package name, prefixed by a hash that ensures that all store paths are unique
 (the hash of _what_ is explained a little later). Lastly within the package
-there there can be arbitrary subfolders, including /bin, lib etc.
+there there can be arbitrary subfolders, including bin, usr/lib etc.
 
-Nix ensures that each store path is immutable, so multiple packages can
-reference that path without having to worry that it somehow breaks
-later. "Updates" to a package are performed by putting a new version into a new
-path, and replacing programs with new ones that refer that new path. This
-ensures that updating a library can't break other programs, since they will just
-continue to the old version of the library. "Downgrading" a program becomes a
-no-op; as long as the store-path isn't deleted the old program never goes away
-and still uses the old libraries as before (as it is immutable).
-
-You can put something into the Nix store yourself using `nix-store --add
-<path>`. nix-store will return the store path it created. Adding the same files
-multiple times will return the same store path, since the hash will be the same.
-
-The Nix store also has a database that tracks which store paths need other paths
-to function, so you don't accidentally delete the `libreadline` library that
-your bash still needs. This allows Nix to determine orphaned packages that
-aren't referred to by anything any longer and can be
-deleted. nix-collect-garbage finds those store paths and deletes them. Nix also
-needs to know which packages you want to keep for yourself, since otherwise it
-would just always delete everything; that is called a garbage-collection root.
-
-See https://nixos.org/guides/nix-pills/garbage-collector.html for more details
-
-To reiterate:
-Invariants of the Nix store:
+To make the store well, we have the following desiderata:
 * The store path uniquely determines it's contents. I.e. `/nix/store/xadrr3l5jvkkm3g3lb2g81j5wz51zqdv-bash-interactive-4.4-p23/bin/bash`
   will always contain the same bash version, compiled with the same flags and
   linked against the same libraries (in the same store paths). If any of those
@@ -91,6 +67,29 @@ Invariants of the Nix store:
   against libraries in them them, call executables etc.), not to files anywhere
   else. This ensures that a store path and the store paths it (recursively)
   refers to are self-sufficient. Such a self-sufficient set of store paths is called a `closure`.
+
+The Nix store has a database that tracks which store paths need other paths
+to function, so you don't accidentally delete the libreadline library that
+your bash still needs. This allows Nix to determine orphaned packages that
+aren't referred to by anything any longer and can be
+deleted. `nix-collect-garbage` finds those store paths and deletes them. Nix also
+needs to know which packages you want to keep for yourself, since otherwise it
+would just always delete everything; these are called garbage-collection roots.
+
+"Updates" to a package are performed by putting a new version into a new
+path, and replacing programs with new ones that refer that new path. This
+ensures that updating a library can't break other programs, since they will just
+continue to the old version of the library. "Downgrading" a program becomes a
+no-op; as long as the store-path isn't deleted the old program never goes away
+and still uses the old libraries as before.
+
+You can put something into the Nix store yourself using `nix-store --add
+<path>`. nix-store will return the store path it created. Adding the same files
+multiple times will return the same store path, since the hash will be the same.
+
+
+See https://nixos.org/guides/nix-pills/garbage-collector.html for more details
+
 
 For example the closure that contains the the bash executable in path could can be determiend like this:
 
@@ -207,24 +206,38 @@ can't be patched beforehand (e.g. steam)
 
 All of this not only makes for a fresh way of building an OS, but is desireable when developing software:
 
-* Declarative way setting dependencies
-* Each developer gets the same result
+* Declarative way managing dependencies
+* Each developer gets the same result, independent of environment
 * Resulting output closure is self-sufficient, can easily be exported
-* Build output caching "for free"
+  * When the closure is copied to another machine with Nix, it "just
+    works". This is the basis of [NixOps](https://github.com/NixOS/nixops)
+  * Can be wrapped as a Docker image without dependencies on base images
+* Caching (of build outputs, intermediate packages etc.) "for free"
 
-* Like Docker, but...
+* Can easily have per-project development environment with individual versions
+  of compilers, library versions, development tools etc. "installed". Especially
+  in combination with [direnv](https://direnv.net/)
+
+* A bit like Docker, but...
   * "More" declarative
   * more fine-grained, per-package instead of one base images
   * stronger; docker image tags aren't actually immutable
-  *
 
+# How can I try Nix?
 
+You can install Nix via your system package manager, or if you have docker just run
+
+```
+> docker run --rm -it nixos/nix
+[...]
+/# nix-channel --update
+```
 
 ## What is nixpkgs
 
 Nixpkgs is a collection of `Nix Expressions`, (Nix Language files) that describe
 how to download and build a large number of software packages. It's the basis of
-an entire operating system, NixOS. Nixpkgs
+an entire operating system, NixOS.
 
 Nixpkgs is hosted on github: https://github.com/NixOS/nixpkgs
 
@@ -234,10 +247,10 @@ NixOS is an entire system built on Nix, using nixpkgs as it's package source.
 
 * But how does NixOS know which package is "installed", when I can have many different versions of e.g. bash in the nix store?
 
-Symlinks! The "current system" is a collection of symlinks to stuff in the
-store. That's called a "profile". Similarly for each user, this means users can install their own software
-without needing root privileges, because Nix uses hashes to ensure that packages
-in the Nix store don't collide.
+Symlinks! The "current system" is a collection of symlinks to packages in the
+store. That's called a "profile". Each user can have their own, this means users
+can install their own software without needing root privileges, because Nix uses
+hashes to ensure that packages in the Nix store don't collide.
 
 "Updating" a package then just becomes putting the new version in the store and replacing the symlinks in the profile.
 
